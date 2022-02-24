@@ -14,11 +14,6 @@ import {
   GraphQLFieldResolver,
 } from 'graphql';
 import resolvable, { Resolvable } from '@josephg/resolvable';
-import {
-  InMemoryLRUCache,
-  KeyValueCache,
-  PrefixingKeyValueCache,
-} from 'apollo-server-caching';
 import type {
   ApolloServerPlugin,
   GraphQLServiceContext,
@@ -67,6 +62,8 @@ import { GatewayIsTooOldError, SchemaManager } from './utils/schemaManager';
 import * as uuid from 'uuid';
 import { cloneObject, HeaderMap, HttpQueryError } from './runHttpQuery';
 import { runPotentiallyBatchedHttpQuery } from './httpBatching';
+import { KeyvLRU, PrefixingKeyv } from './utils/KeyvLRU';
+import type Keyv from 'keyv';
 
 const NoIntrospection = (context: ValidationContext) => ({
   Field(node: FieldDefinitionNode) {
@@ -150,7 +147,7 @@ export interface ApolloServerInternals<TContext> {
   ) => GraphQLResponse | null;
   fieldResolver?: GraphQLFieldResolver<any, TContext>;
   includeStackTracesInErrorResponses: boolean;
-  cache: KeyValueCache;
+  cache: Keyv;
   persistedQueries?: WithRequired<PersistedQueryOptions, 'cache'>;
   nodeEnv: string;
   allowBatchedHttpRequests: boolean;
@@ -231,7 +228,7 @@ export class ApolloServerBase<TContext extends BaseContext> {
         };
 
     const introspectionEnabled = config.introspection ?? isDev;
-    const cache = config.cache ?? new InMemoryLRUCache();
+    const cache = config.cache ?? new KeyvLRU();
 
     // Note that we avoid calling methods on `this` before `this.internals` is assigned
     // (thus a bunch of things being static methods above).
@@ -253,7 +250,7 @@ export class ApolloServerBase<TContext extends BaseContext> {
           ? undefined
           : {
               ...config.persistedQueries,
-              cache: new PrefixingKeyValueCache(
+              cache: new PrefixingKeyv(
                 config.persistedQueries?.cache ?? cache,
                 APQ_CACHE_PREFIX,
               ),
@@ -680,10 +677,10 @@ export class ApolloServerBase<TContext extends BaseContext> {
       // random prefix each time we get a new schema.
       documentStore:
         providedUnprefixedDocumentStore === undefined
-          ? ApolloServerBase.initializeDocumentStore()
+          ? new KeyvLRU()
           : providedUnprefixedDocumentStore === null
           ? null
-          : new PrefixingKeyValueCache(
+          : new PrefixingKeyv(
               providedUnprefixedDocumentStore,
               `${uuid.v4()}:`,
             ),
@@ -916,20 +913,6 @@ export class ApolloServerBase<TContext extends BaseContext> {
     });
 
     return plugins;
-  }
-
-  private static initializeDocumentStore(): InMemoryLRUCache<DocumentNode> {
-    return new InMemoryLRUCache<DocumentNode>({
-      // Create ~about~ a 30MiB InMemoryLRUCache.  This is less than precise
-      // since the technique to calculate the size of a DocumentNode is
-      // only using JSON.stringify on the DocumentNode (and thus doesn't account
-      // for unicode characters, etc.), but it should do a reasonable job at
-      // providing a caching document store for most operations.
-      //
-      // If you want to tweak the max size, pass in your own documentStore.
-      maxSize: Math.pow(2, 20) * 30,
-      sizeCalculator: InMemoryLRUCache.jsonBytesSizeCalculator,
-    });
   }
 
   // TODO(AS4): Make sure we like the name of this function.
