@@ -20,9 +20,10 @@ import type {
 } from '@apollo/server-types';
 
 import type { GraphQLSchemaModule } from '@apollographql/apollo-tools';
-import type Keyv from 'keyv';
 
 export type { GraphQLSchemaModule };
+
+import type Keyv from 'keyv';
 
 // A plugin can return an interface that matches `ApolloServerPlugin`, or a
 // factory function that returns `ApolloServerPlugin`.
