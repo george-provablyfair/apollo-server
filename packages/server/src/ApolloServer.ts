@@ -680,10 +680,7 @@ export class ApolloServerBase<TContext extends BaseContext> {
           ? new KeyvLRU()
           : providedUnprefixedDocumentStore === null
           ? null
-          : new PrefixingKeyv(
-              providedUnprefixedDocumentStore,
-              `${uuid.v4()}:`,
-            ),
+          : new PrefixingKeyv(providedUnprefixedDocumentStore, `${uuid.v4()}:`),
     };
   }
 
